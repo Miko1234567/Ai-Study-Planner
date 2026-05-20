@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <title>Жұмыс үстелі - AI Study Planner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .completed-task { text-decoration: line-through; color: gray; }
+        .timer-display { font-size: 1.7rem; font-weight: bold; color: #dc3545; }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">🤖 AI Study Advanced Planner</span>
+            <div class="d-flex">
+                <span class="navbar-text text-white me-3">Сәлем, {{ current_user.username }}!</span>
+                <a href="/logout" class="btn btn-outline-danger btn-sm">Шығу</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <strong>{{ message }}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="row">
+            <div class="col-md-5 mb-4">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <h4 class="card-title mb-3">Жаңа оқу жоспарын құру</h4>
+                        <form action="/generate" method="POST">
+                            <div class="mb-3">
+                                <label class="form-label">Қандай тақырыпты оқығыңыз келеді?</label>
+                                <input type="text" name="topic" class="form-control" placeholder="мысалы: Python негіздері, Алгоритмдер" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Қанша күнге жоспарлау керек?</label>
+                                <select name="days" class="form-select">
+                                    <option value="3">3 күн</option>
+                                    <option value="5">5 күн</option>
+                                    <option value="7">7 күн (1 апта)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">AI Жоспар Құру ✨</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm bg-white text-center p-3 mb-4">
+                    <h5 class="card-title">⏱️ Smart Pomodoro Таймері</h5>
+                    
+                    <div class="mb-2 px-3">
+                        <label class="form-label small text-muted mb-1">Уақытты енгізіңіз (минут):</label>
+                        <input type="number" id="customMinutes" class="form-control form-control-sm text-center mx-auto" value="25" min="1" max="180" style="max-width: 100px;">
+                    </div>
+
+                    <div class="timer-display my-2" id="timer">25:00</div>
+                    
+                    <div class="btn-group w-100 px-2">
+                        <button class="btn btn-sm btn-success" onclick="startTimer()">Бастау</button>
+                        <button class="btn btn-sm btn-warning text-white" onclick="pauseTimer()">Кідірту</button>
+                        <button class="btn btn-sm btn-secondary" onclick="resetTimer()">Айыру</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-7">
+                <h4 class="mb-3">Сіздің интеллектуалды жоспарларыңыз</h4>
+                {% if plans %}
+                    {% for plan in plans %}
+                        <div class="card mb-4 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title text-primary">
+                                    {{ plan.title }} ({{ plan.duration }} күн)
+                                </h5>
+
+                                <form action="/edit/{{ plan.id }}" method="POST" class="d-flex mb-3">
+                                    <input type="text" name="new_title" class="form-control form-control-sm me-2" placeholder="Жаңа атау жазыңыз" required>
+                                    <button type="submit" class="btn btn-warning btn-sm text-white">Өзгерту</button>
+                                </form>
+
+                                <hr>
+
+                                <h6 class="fw-bold">✅ Сабақ тапсырмаларының тізімі:</h6>
+                                <ul class="list-group mb-3 shadow-sm">
+                                    {% for task in plan.tasks %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                                            <span class="{% if task.is_completed %}completed-task{% endif %} small">{{ task.text }}</span>
+                                            <a href="/toggle-task/{{ task.id }}" class="btn btn-sm {% if task.is_completed %}btn-secondary{% else %}btn-outline-success{% endif %} btn-sm" style="font-size: 0.75rem;">
+                                                {% if task.is_completed %}Орындалды ✓{% else %}Орындау{% endif %}
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+
+                                <h6 class="fw-bold">📖 AI Толық Оқу Нұсқаулығы:</h6>
+                                <div class="bg-white p-3 border rounded mb-3" style="white-space: pre-line; max-height: 200px; overflow-y: auto; font-size: 0.9rem;">
+                                    {{ plan.content }}
+                                </div>
+
+                                <hr>
+
+                                <h6 class="fw-bold">🧠 Өзін-өзі тексеру тесті (AI Quiz):</h6>
+                                {% if not plan.quizzes %}
+                                    <a href="/make-quiz/{{ plan.id }}" class="btn btn-sm btn-info text-white mb-2 w-100">AI-мен 3 Тест Сұрағын Жасау 🎲</a>
+                                {% else %}
+                                    <form action="/check-quiz/{{ plan.id }}" method="POST" class="p-3 border rounded bg-light mb-2" style="font-size: 0.9rem;">
+                                        {% for q in plan.quizzes %}
+                                            <div class="mb-3">
+                                                <p class="mb-1 fw-semibold">{{ loop.index }}. {{ q.question }}</p>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="question_{{ q.id }}" value="A" required>
+                                                    <label class="form-check-label">{{ q.option_a }}</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="question_{{ q.id }}" value="B">
+                                                    <label class="form-check-label">{{ q.option_b }}</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="question_{{ q.id }}" value="C">
+                                                    <label class="form-check-label">{{ q.option_c }}</label>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                        <button type="submit" class="btn btn-sm btn-success w-100">Жауаптарды тексеру</button>
+                                    </form>
+                                {% endif %}
+
+                                <div class="text-end mt-3">
+                                    <a href="/delete/{{ plan.id }}" class="btn btn-danger btn-sm">Жоспарды өшіру</a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-info">Сізде әлі оқу жоспарлары жоқ. Сол жақтан алғашқы жоспарыңызды құрып көріңіз!</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let timer;
+        let timeLeft = 25 * 60;
+        let isRunning = false;
+
+        function updateDisplay() {
+            let minutes = Math.floor(timeLeft / 60);
+            let seconds = timeLeft % 60;
+            document.getElementById('timer').innerText = 
+                (minutes < 10 ? "0" : "") + minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+        }
+
+        // Енгізілген минутты тексеріп, тек дұрыс санды қайтаратын функция (Error Handling)
+        function getValidMinutes() {
+            let inputVal = document.getElementById('customMinutes').value;
+            let parsedMin = parseInt(inputVal, 10);
+
+            // Егер сан емес (әріп), бос немесе 0-ден кіші болса, автоматты түрде 25 минут қылады
+            if (isNaN(parsedMin) || parsedMin <= 0) {
+                document.getElementById('customMinutes').value = 25;
+                return 25;
+            }
+            
+            // Егер өте үлкен сан енгізсе, максимум 180 минутпен шектейді
+            if (parsedMin > 180) {
+                document.getElementById('customMinutes').value = 180;
+                return 180;
+            }
+
+            return parsedMin;
+        }
+
+        function startTimer() {
+            if (!isRunning) {
+                // Таймер жаңадан басталғанда тек тексерілген дұрыс минутты алады
+                if (timeLeft === 25 * 60 || timeLeft === Math.floor(timeLeft / 60) * 60) {
+                    let validMin = getValidMinutes();
+                    timeLeft = validMin * 60;
+                    updateDisplay();
+                }
+                
+                isRunning = true;
+                timer = setInterval(() => {
+                    if (timeLeft > 0) {
+                        timeLeft--;
+                        updateDisplay();
+                    } else {
+                        clearInterval(timer);
+                        alert("Уақыт бітті! Шағын үзіліс жасап, демалып алыңыз.");
+                        resetTimer();
+                    }
+                }, 1000);
+            }
+        }
+
+        function pauseTimer() {
+            clearInterval(timer);
+            isRunning = false;
+        }
+
+        function resetTimer() {
+            clearInterval(timer);
+            isRunning = false;
+            let validMin = getValidMinutes();
+            timeLeft = validMin * 60;
+            updateDisplay();
+        }
+
+        // Пайдаланушы инпутқа мәтін немесе сан жазған кезде бірден тексереді
+        document.getElementById('customMinutes').addEventListener('input', function() {
+            if (!isRunning) {
+                let validMin = getValidMinutes();
+                timeLeft = validMin * 60;
+                updateDisplay();
+            }
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
