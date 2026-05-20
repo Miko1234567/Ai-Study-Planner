@@ -35,4 +35,4 @@ class QuizQuest(db.Model):
     option_b = db.Column(db.String(200), nullable=False)
     option_c = db.Column(db.String(200), nullable=False)
     correct_option = db.Column(db.String(1), nullable=False) # 'A', 'B', немесе 'C'
-    plan_id = db.Column(db.Integer, db.ForeignKey('study_plan.id'), nullable=False)
+    plan_id = db.Column(db.Integer, db.ForeignKey('study_plan.id'), nullable=False) 
